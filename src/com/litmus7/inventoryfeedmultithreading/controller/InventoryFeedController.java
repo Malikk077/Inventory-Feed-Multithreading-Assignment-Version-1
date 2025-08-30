@@ -5,6 +5,8 @@ import java.net.URI;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.stream.Stream;
 
 import org.apache.logging.log4j.LogManager;
@@ -17,15 +19,19 @@ import com.litmus7.inventoryfeedmultithreading.dto.Response;
 import com.litmus7.inventoryfeedmultithreading.exception.ProductServiceException;
 import com.litmus7.inventoryfeedmultithreading.service.InventoryFeedService;
 import com.litmus7.inventoryfeedmultithreading.util.ErrorMessageUtil;
+import com.litmus7.inventoryfeedmultithreading.util.FileMoverUtil;
 
 public class InventoryFeedController {
 	private static final Logger logger = LogManager.getLogger(InventoryFeedController.class);
 	InventoryFeedService inventoryService =new InventoryFeedService();
 	
+	
 public Response<Integer> csvtoDB(URI folder) {
         
         logger.trace(LoggerConstants.ENTER_METHOD_LOG_MESSAGE, "csvtoDB()");
         Path folderPath = Paths.get(folder);
+        
+        List<String> errors = new ArrayList<>() ;
 	    
         int successCount = 0;
         int failureCount = 0;
@@ -40,7 +46,13 @@ public Response<Integer> csvtoDB(URI folder) {
                 
                 if (!fileName.endsWith(".csv")) {
                     logger.warn("Skipping non-CSV file: {}", fileName);
-                    return new Response<>(Constant.FILE_NOT_CSV, ErrorMessageUtil.getErrorMessage("EMP-CTRL-400.notCSV"), successCount);
+                    Path inputFile = Paths.get(file.toString());
+                    Path baseDir = Paths.get("src/inventory-feed");
+                    Path targetForErrors = baseDir.resolve("error").resolve(inputFile.getFileName());
+                    FileMoverUtil.moveFile(inputFile, targetForErrors, "CSV read failure");
+                    failureCount++;
+                    errors.add(ErrorMessageUtil.getErrorMessage("EMP-CTRL-400.notCSV"));
+                    continue;
                 }
 
                 try {
@@ -56,7 +68,7 @@ public Response<Integer> csvtoDB(URI folder) {
 
                 } catch (ProductServiceException e) {
                     logger.error("Service exception while processing file: {}", fileName, e);
-                    return new Response<>(Constant.FAILURE, ErrorMessageUtil.getErrorMessage(e.getErrorCode()), successCount);
+                    errors.add(ErrorMessageUtil.getErrorMessage(e.getErrorCode()));
                 }
             }
 
@@ -65,10 +77,10 @@ public Response<Integer> csvtoDB(URI folder) {
                 return new Response<>(Constant.SUCCESS, "All Files Processed files successfully", successCount);
             } else if (successCount > 0) {
                 logger.warn("Partial success. Success = {}, Failures = {}", successCount, failureCount);
-                return new Response<>(Constant.PARTIAL_SUCCESS, " Processed " + successCount + " Files successfully", successCount);
+                return new Response<>(Constant.PARTIAL_SUCCESS, " Processed " + successCount + " Files successfully \n Errors :"+errors, successCount);
             } else {
                 logger.error("No files processed successfully.");
-                return new Response<>(Constant.FAILURE, " NO FILES Processed ", successCount);
+                return new Response<>(Constant.FAILURE, " NO FILES Processed errors : "+errors, successCount);
             }
 
         } catch (IOException e) {
