@@ -39,7 +39,7 @@ public class InventoryFeedService {
         Path targetForSuccess = baseDir.resolve("processed").resolve(inputFile.getFileName());
         Path targetForErrors = baseDir.resolve("error").resolve(inputFile.getFileName());
 
-        // === Step 1: Read CSV ===
+        
         try {
             logger.info("Reading CSV file: {}", file);
             records = CsvUtil.readCSV(file);
@@ -54,7 +54,7 @@ public class InventoryFeedService {
             throw new ProductServiceException(e.getErrorCode(), e);
         }
 
-        // === Step 2: Mapping + Validation ===
+
         try {
             logger.trace("Starting product mapping and validation for file [{}]", file);
             for (String[] values : records) {
@@ -86,7 +86,6 @@ public class InventoryFeedService {
                 products.add(product);
             }
 
-            // === Step 3: DB Insert ===
             logger.info("Attempting batch insert of {} products", products.size());
             boolean success = inventoryDao.batchInsertProducts(products);
 
@@ -120,5 +119,6 @@ public class InventoryFeedService {
         } 
     }
 }
+
 
 
